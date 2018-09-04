@@ -1,0 +1,164 @@
+#!/bin/perl
+
+use strict;
+use warnings;
+
+my $output = '';
+my $clean = 0;
+
+if(scalar(@ARGV) == 0){
+    print "Not enough arguments. Type $0 -h to print help\n";
+    exit;
+}
+
+for (my $i = 0; $i < scalar(@ARGV); $i++) {
+    my @args;
+    if($ARGV[$i] =~ m/-[a-z]+/){
+        my $temp = $ARGV[$i];
+        $temp =~ s/-([a-z]+)/$1/;
+        @args = split //, $temp;
+        
+        foreach my $option (@args) {
+            if($option eq "o"){
+                 $output = $ARGV[$i+1];
+            } elsif($option eq "c"){
+                 $clean = 1;
+            } elsif($option eq "h"){
+                 print "Parses a restricted set of Mardown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
+                 
+                 Usage : $0 [-o output.pdf] input.md
+                 
+                 Options :
+                 
+                 -h     Prints this help
+                 -o     Change output filename
+                 -c     Clean temporary files left by parser and xelatex\n";
+                 exit;
+            } else {
+                print "Unrecognized argument : -$option. Type $0 -h to get help\n";
+                exit;
+            }
+        }
+    }
+    
+}
+
+my $file = $ARGV[-1];
+
+my $data;
+{
+    open my $fh, '<', $file or die "File not found";
+    local $/ = undef;
+    $data = <$fh>;
+    close $fh;
+}
+
+
+# Workaround for $$ $$
+$data =~ s/\$\$/\$¶/g;
+
+# Get title
+my $title;
+if($data =~ /---\n(?:.+\n)*title: ([^\n]+)\n(?:.+\n)*---/i ){
+    $title = $1;
+}
+
+# Delete everything inside --- at the begining
+$data =~ s/---\n[\w\W]*?---//;
+
+# Change 'Partie 1' to part 
+#         ========
+$data =~ s/\n([0-9]+)\)\s(.+)\n={3,}\n/\n\\setcounter{part}{$1}\\addtocounter{part}{-1}\\part{$2}\n/g;
+
+# Change '# Chapitre' to chapters
+$data =~ s/\n#\s+(.+)/\n\\section{$1}\n/g;
+
+# Change '## Section' to sections
+$data =~ s/\n##\s+(.+)/\n\\subsection{$1}\n/g;
+
+# Change '### Subsection' to subsections
+$data =~ s/\n###\s+(.+)/\n\\subsubsection{$1}\n/g;
+
+# Change '#### Subsubsection' to sections
+$data =~ s/\n####\s+(.+)/\n\\textbf{$1}\n/g;
+
+# Parse definitions
+$data =~ s/\n:\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{definition}[$1]\n$2\n\\end{definition}/g;
+
+# Parse propositions
+$data =~ s/\n>\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{proposition}[$1]\n$2\n\\end{proposition}/g;
+
+# Parse theorems
+$data =~ s/\n~\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{theorem}[$1]\n$2\n\\end{theorem}/g;
+
+# Parse remarks
+$data =~ s/\n@@\s+([\s\S]+?)\s\[\]/\n\\begin{remarque}\n$1\n\\end{remarque}/g;
+
+# Parse proofs
+$data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\begin{proof}\n$1\n\\end{proof}/g;
+
+# Change '_italique_' to italic text
+$data =~ s/_(.+?)_(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textit{$1}/g; # Ce que fait cette regex de la mort est qu'elle matche tous les caractères compris entre _ et _, sauf si ces mêmes caractères sont à l'intérieur d'une expression mathématique $ $ ou $$ $$
+
+#$data =~ s/\$\$(.+?)\$\$/NotInMath($`$')/g;
+
+# Change '**gras**' to bold text
+$data =~ s/\*{2}(.+?)\*{2}(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textbf{$1}/g;
+
+# Put '^{texte}' in superscript
+$data =~ s/\^\{(.+?)\}(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/g;
+
+# Put '^[char]' in superscript
+$data =~ s/\^(.)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/g;
+
+
+# Put '-' as item
+$data =~ s/\n\s*-\s+(.+)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\t\\item $1/g;
+
+# Put items inside lists
+$data =~ s/((?:\n\t\\item .+)+)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\n\\begin{itemize}$1\n\\end{itemize}/g;
+
+
+# Workaround for $$ $$ - revert
+$data =~ s/\$\¶/\$\$/g;
+
+### Adding header and all
+
+$data = "\\documentclass[a5paper,10pt]{article}
+\\input{header.tex}
+\\author{Antoine {\\scshape Viallon}}
+\\title{$title}
+\\date{\\today}
+\\begin{document}
+\\maketitle
+\\tableofcontents
+$data
+\\end{document}";
+
+my $filename = $file;
+$filename =~ s/\.md$//;
+
+if($output eq ''){
+    $output = "$filename.pdf";
+}
+
+open(my $newfile, '>', "$filename.tex") or die "Could not open file '$filename.tex' $!";
+print $newfile $data;
+close $newfile;
+
+print "Parsed file... sending to tex for processing : ";
+my $shell_output;
+$shell_output = `xelatex $filename.tex; xelatex $filename.tex; mv $filename.pdf $output`;
+print "done !\n";
+
+if($clean){
+    print "Cleaning... ";
+    $shell_output = `rm -f $filename.tex *.log $filename.aux $filename.toc`;
+    print "done\n";
+}
+
+#sub NotInMath{
+#    my $change = @_[0];
+#    $change =~ s/_(.+?)_/\\textit{$1}/g;
+#    return $change;
+#}
