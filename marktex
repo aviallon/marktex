@@ -148,7 +148,7 @@ close $newfile;
 
 print "Parsed file... sending to tex for processing : ";
 my $shell_output;
-$shell_output = `xelatex $filename.tex; xelatex $filename.tex; mv $filename.pdf $output`;
+$shell_output = `xelatex $filename.tex; xelatex $filename.tex; mv $filename.pdf $output 2>&1`;
 print "done !\n";
 
 if($clean){
@@ -156,9 +156,3 @@ if($clean){
     $shell_output = `rm -f $filename.tex *.log $filename.aux $filename.toc`;
     print "done\n";
 }
-
-#sub NotInMath{
-#    my $change = @_[0];
-#    $change =~ s/_(.+?)_/\\textit{$1}/g;
-#    return $change;
-#}
