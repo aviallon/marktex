@@ -204,7 +204,7 @@ if($debug){
 
 print "Parsed file... sending to tex for processing : ";
 my $shell_output;
-$shell_output = `xelatex $filename.tex $print_debug; xelatex $filename.tex $print_debug; pdfnup $filename.pdf $filename.pdf --nup '2x1'; mv $filename-nup.pdf $output 2>&1`;
+$shell_output = `xelatex $filename.tex $print_debug; xelatex $filename.tex $print_debug; pdfnup $filename.pdf $filename.pdf --nup '2x1' 2>&1; mv $filename-nup.pdf $output 2>&1`;
 print "done !\n";
 
 if($clean){
