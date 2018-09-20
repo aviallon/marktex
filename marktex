@@ -5,6 +5,9 @@ use warnings;
 
 my $output = '';
 my $clean = 0;
+my $nocomments = 0;
+my $noproofs = 0;
+my $debug = 0;
 
 if(scalar(@ARGV) == 0){
     print "Not enough arguments. Type $0 -h to print help\n";
@@ -13,7 +16,17 @@ if(scalar(@ARGV) == 0){
 
 for (my $i = 0; $i < scalar(@ARGV); $i++) {
     my @args;
-    if($ARGV[$i] =~ m/-[a-z]+/){
+    
+    if ($ARGV[$i] =~ m/^--\w+/){
+        my $arg = $ARGV[$i];
+        $arg =~ s/--(\w+)/$1/;
+        
+        if($arg eq "no-comments"){
+            $nocomments = 1;
+        } elsif($arg eq "no-proofs"){
+            $noproofs = 1;
+        } 
+    } elsif($ARGV[$i] =~ m/^-[a-z]+/){
         my $temp = $ARGV[$i];
         $temp =~ s/-([a-z]+)/$1/;
         @args = split //, $temp;
@@ -23,6 +36,8 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
                  $output = $ARGV[$i+1];
             } elsif($option eq "c"){
                  $clean = 1;
+            } elsif($option eq "d"){
+                 $debug = 1;
             } elsif($option eq "h"){
                  print "Parses a restricted set of Mardown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
                  
@@ -57,6 +72,16 @@ my $data;
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
 
+# Workaround for \begin
+$data =~ s/ł/\$ł/g;
+
+# Little shortcut for \displaystyle
+$data =~ s/þ/\\displaystyle/g;
+
+# Special formating (code)
+#$data =~ s/((?:    .+\n)+)/\$ł\\par{\\leftskip4em\\texttt $1}\\par\$ł/g;
+#$data =~ s/    (.+)\n/\t$1\\\\\n/g;
+
 # Get title
 my $title;
 if($data =~ /---\n(?:.+\n)*title: ([^\n]+)\n(?:.+\n)*---/i ){
@@ -88,17 +113,28 @@ $data =~ s/\n:\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{definition}[$1]\n$2\n\\end{
 # Parse propositions
 $data =~ s/\n>\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{proposition}[$1]\n$2\n\\end{proposition}/g;
 
+# Parse lemmes
+$data =~ s/\n>-\s+([\s\S]+?)\s\[\]/\n\\begin{lemme}\n$1\n\\end{lemme}/g;
+
 # Parse theorems
 $data =~ s/\n~\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{theorem}[$1]\n$2\n\\end{theorem}/g;
 
 # Parse remarks
-$data =~ s/\n@@\s+([\s\S]+?)\s\[\]/\n\\begin{remarque}\n$1\n\\end{remarque}/g;
+if($nocomments){
+    $data =~ s/\n@@\s+([\s\S]+?)\s@@/\n/g;
+} else {
+    $data =~ s/\n@@\s+([\s\S]+?)\s@@/\n\\begin{remarque}\n$1\n\\end{remarque}/g;
+}
 
 # Parse proofs
-$data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\begin{proof}\n$1\n\\end{proof}/g;
+if($noproofs){
+    $data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\emph{Voir preuve sur la version complète du cours}\n/g;
+} else {
+    $data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\begin{proof}\n$1\n\\end{proof}/g;
+}
 
 # Change '_italique_' to italic text
-$data =~ s/_(.+?)_(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textit{$1}/g; # Ce que fait cette regex de la mort est qu'elle matche tous les caractères compris entre _ et _, sauf si ces mêmes caractères sont à l'intérieur d'une expression mathématique $ $ ou $$ $$
+$data =~ s/_(.+?)_(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\emph{$1}/g; # Ce que fait cette regex de la mort est qu'elle matche tous les caractères compris entre _ et _, sauf si ces mêmes caractères sont à l'intérieur d'une expression mathématique $ $ ou $$ $$
 
 #$data =~ s/\$\$(.+?)\$\$/NotInMath($`$')/g;
 
@@ -112,27 +148,42 @@ $data =~ s/\^\{(.+?)\}(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/
 $data =~ s/\^(.)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/g;
 
 
+# Put '#NUM)' in bold
+$data =~ s/\n\s*([0-9]+)\)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\\par\\textbf{$1.}/g;
+
 # Put '-' as item
 $data =~ s/\n\s*-\s+(.+)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\t\\item $1/g;
 
 # Put items inside lists
 $data =~ s/((?:\n\t\\item .+)+)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\n\\begin{itemize}$1\n\\end{itemize}/g;
 
+# Shortcut for <= to \leqslant and >= \geqslant
+$data =~ s/<=/\\leqslant/g;
+$data =~ s/>=/\\geqslant/g;
 
 # Workaround for $$ $$ - revert
 $data =~ s/\$\¶/\$\$/g;
 
+# Workaround for \begin and \end
+$data =~ s/\$ł//g;
+
 ### Adding header and all
 
-$data = "\\documentclass[a5paper,10pt]{article}
+$data = "\\documentclass[a4paper,10pt]{article}
 \\input{header.tex}
-\\author{Antoine {\\scshape Viallon}}
+\\author{Antoine {\\scshape Viallon} et Tom {\\scshape Penavaire}}
 \\title{$title}
 \\date{\\today}
+\\usepackage{xltxtra}
 \\begin{document}
 \\maketitle
 \\tableofcontents
 $data
+\\hrulefill
+
+
+\\printendofdocument
+
 \\end{document}";
 
 my $filename = $file;
@@ -146,9 +197,14 @@ open(my $newfile, '>', "$filename.tex") or die "Could not open file '$filename.t
 print $newfile $data;
 close $newfile;
 
+my $print_debug = "";
+if($debug){
+    $print_debug = "1>&2";
+}
+
 print "Parsed file... sending to tex for processing : ";
 my $shell_output;
-$shell_output = `xelatex $filename.tex; xelatex $filename.tex; mv $filename.pdf $output 2>&1`;
+$shell_output = `xelatex $filename.tex $print_debug; xelatex $filename.tex $print_debug; pdfnup $filename.pdf $filename.pdf --nup '2x1'; mv $filename-nup.pdf $output 2>&1`;
 print "done !\n";
 
 if($clean){
