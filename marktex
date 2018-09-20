@@ -8,11 +8,16 @@ my $clean = 0;
 my $nocomments = 0;
 my $noproofs = 0;
 my $debug = 0;
+my $folded = 0;
 
 if(scalar(@ARGV) == 0){
     print "Not enough arguments. Type $0 -h to print help\n";
     exit;
 }
+
+my $file = $ARGV[-1];
+my $filename = $file;
+$filename =~ s/\.md$//;
 
 for (my $i = 0; $i < scalar(@ARGV); $i++) {
     my @args;
@@ -25,7 +30,16 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
             $nocomments = 1;
         } elsif($arg eq "no-proofs"){
             $noproofs = 1;
-        } 
+        } elsif($arg eq "folded"){
+            $folded = 1;
+        } elsif($arg eq "lesson-cards"){
+            print "Making lesson card...\n";
+            $nocomments = 1;
+            $noproofs = 1;
+            $folded = 1;
+            $clean = 1;
+            $output = "$filename-fiche.pdf";
+        }
     } elsif($ARGV[$i] =~ m/^-[a-z]+/){
         my $temp = $ARGV[$i];
         $temp =~ s/-([a-z]+)/$1/;
@@ -47,7 +61,13 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
                  
                  -h     Prints this help
                  -o     Change output filename
-                 -c     Clean temporary files left by parser and xelatex\n";
+                 -c     Clean temporary files left by parser and xelatex
+                 -d     Prints debug output
+                 
+                 --no-comments   Disables comments inside document (delimited by \@\@ and \@\@
+                 --no-proofs    Replaces proofs by little message saying : Go see the full lesson
+                 --folded       Folds pages specialy for book printing
+                 --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
                  exit;
             } else {
                 print "Unrecognized argument : -$option. Type $0 -h to get help\n";
@@ -57,8 +77,6 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
     }
     
 }
-
-my $file = $ARGV[-1];
 
 my $data;
 {
@@ -86,6 +104,12 @@ $data =~ s/þ/\\displaystyle/g;
 my $title;
 if($data =~ /---\n(?:.+\n)*title: ([^\n]+)\n(?:.+\n)*---/i ){
     $title = $1;
+}
+
+# Get title
+my $author = "Antoine {\\scshape Viallon}";
+if($author =~ /---\n(?:.+\n)*author: ([^\n]+)\n(?:.+\n)*---/i ){
+    $author = $1;
 }
 
 # Delete everything inside --- at the begining
@@ -171,7 +195,7 @@ $data =~ s/\$ł//g;
 
 $data = "\\documentclass[a4paper,10pt]{article}
 \\input{header.tex}
-\\author{Antoine {\\scshape Viallon} et Tom {\\scshape Penavaire}}
+\\author{$author}
 \\title{$title}
 \\date{\\today}
 \\usepackage{xltxtra}
@@ -186,9 +210,6 @@ $data
 
 \\end{document}";
 
-my $filename = $file;
-$filename =~ s/\.md$//;
-
 if($output eq ''){
     $output = "$filename.pdf";
 }
@@ -198,13 +219,21 @@ print $newfile $data;
 close $newfile;
 
 my $print_debug = "";
+my $hide_output = "2>&1";
 if($debug){
     $print_debug = "1>&2";
+    $hide_output = "";
+}
+
+my $fold_command = "pdfnup $filename.pdf --nup '2x1' $hide_output; mv $filename-nup.pdf $output $hide_output";
+if($folded){
+    print "Folded activated\n";
+    $fold_command = "pdfbook --batch $filename.pdf $hide_output; mv $filename-book.pdf $output $hide_output";
 }
 
 print "Parsed file... sending to tex for processing : ";
 my $shell_output;
-$shell_output = `xelatex $filename.tex $print_debug; xelatex $filename.tex $print_debug; pdfnup $filename.pdf $filename.pdf --nup '2x1' 2>&1; mv $filename-nup.pdf $output 2>&1`;
+$shell_output = `xelatex $filename.tex $print_debug; xelatex $filename.tex $print_debug; $fold_command`;
 print "done !\n";
 
 if($clean){
