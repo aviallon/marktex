@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use Data::Dumper;
 
 my $output = '';
 my $clean = 0;
@@ -9,8 +10,9 @@ my $nocomments = 0;
 my $noproofs = 0;
 my $debug = 0;
 my $folded = 0;
-my $nomerging = 0;
+my $merging = 0;
 my $stop_on_error = 0;
+my $notoc = 0;
 
 if(scalar(@ARGV) == 0){
     print "Not enough arguments. Type $0 -h to print help\n";
@@ -31,19 +33,22 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
         $arg =~ s/--(\w+)/$1/;
         
         if($arg eq "no-comments"){
-            print "no comments ;";
+            print "no comments ; ";
             $nocomments = 1;
         } elsif($arg eq "no-proofs"){
-            print "no proofs ;";
+            print "no proofs ; ";
             $noproofs = 1;
-        } elsif($arg eq "no-page-merging"){
-            print "no page merging ;";
-            $nomerging = 1;
+        } elsif($arg eq "page-merging"){
+            print "page merging ; ";
+            $merging = 1;
+        } elsif($arg eq "no-toc"){
+            print "no table of contents ; ";
+            $notoc = 1;
         } elsif($arg eq "folded"){
-            print "folded ;";
+            print "folded ; ";
             $folded = 1;
         } elsif($arg eq "stop-on-error"){
-            print "stop-on-error ;";
+            print "stop-on-error ; ";
             $stop_on_error = 1;
         } elsif($arg eq "lesson-cards"){
             print "Making lesson card...";
@@ -52,6 +57,8 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
             $folded = 1;
             $clean = 1;
             $output = "$filename-fiche.pdf";
+        } else {
+            print "UNKNOWN OPTION: $arg ; ";
         }
     } elsif($ARGV[$i] =~ m/^-[a-z]+/){
         my $temp = $ARGV[$i];
@@ -117,7 +124,7 @@ sub picture_insert{
         return "Error while parsing image : wrong number of arguments";
     }
     my $str = "\
-\\begin{figure}[H]
+\\begin{figure}[h!]
 \\centering
 \\def\\svgwidth{\\columnwidth}
 \\includegraphics[width=0.8 \\textwidth]{$_[0]}";
@@ -131,8 +138,13 @@ sub picture_insert{
 }
 
 # Pictures
+if($data =~ /\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ ){
+    print "Warning : <pic></pic> for inserting images is deprecated. Please use ![title](adress) as in standard Markdown\n";
+}
+
 $data =~ s/\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ł\n@{[picture_insert($2, $1)]}ł/g;
 
+$data =~ s/\n!\[(.*)\]\(([^)]+)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
 
 # Encode special chars
 $data =~ s/\$([^\$]*?)\$/\$@{[no_maths($1)]}\$/g;
@@ -170,6 +182,14 @@ if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
     $mode = $1;
 } else {
     print "Warning : no mode provided. Using default : $mode\n";
+}
+
+# Get mode
+my $date = "\\today";
+if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
+    $date = $1;
+} else {
+    print "Warning : no date provided. Using today's date\n";
 }
 
 # Delete everything inside --- at the begining
@@ -253,7 +273,69 @@ $data =~ s/\n\s*([0-9]+)\)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\\par\\textbf{$1
 # Put '-' as item
 $data =~ s/^\s*-\s+(.+)$/\t\\item $1/mg;
 # Put items inside lists
-$data =~ s/((?:\t\\item .+\n)+)/\n\n\\begin{itemize}$1\n\\end{itemize}/g;
+$data =~ s/((?:\t\\item .+\n)+)/\n\n\\begin{itemize}$1\n\\end{itemize}\n/g;
+
+sub make_table{
+    my $n= scalar(@_);
+    
+    my @lines = split /(?<=\n)/, "$_[0]";
+    
+    my $ncols = 0;
+    
+    my $text = "";
+    
+    for (my $i = 0; $i < scalar(@lines); $i++){
+        my @cols = split /(?<=\s\|\s)/, $lines[$i];
+        my $line = "";
+        for (my $j = 0; $j < scalar(@cols); $j++){
+            my $temp = $cols[$j];
+            $temp =~ s/((?:[^\s|] [^\s|]?)+)[\s|]*/$1/;
+            $temp =~ s/ *\| ?$//;
+            $temp =~ s/\n$//;
+            $temp =~ s/ +$//;
+            #print "Mod : $temp\n";
+            $cols[$j] = $temp;
+            if ($i == 0){
+                $temp = "\\textbf{$temp}";
+            }
+            unless ($temp =~ /^-+$/){
+                if ($j != 0){
+                    $line = $line . " & ";
+                }
+                $line = $line . $temp;
+            }
+        }
+        #print Dumper \@cols;
+        if ($line ne ""){
+            $text = $text . $line;
+            $text = $text . "\\\\\n";
+            if ($i == 0){
+                $text = $text . "\\hline\n\\endhead\n";
+            }
+        }
+        $lines[$i] = \@cols;
+        $ncols = scalar(@cols);
+    }
+    if ($debug) {
+        print "Detected table : $n\n";
+        print "Lines :\n";
+        print Dumper \@lines;
+    }
+    #print "-> ", $_, "\n" for @lines;
+    my $colprint = ("|c" x ($ncols-1));
+    return "\
+\\begin{longtable}[h!]{|c$colprint|}
+%\\centering
+%\\begin{tabular}{|c$colprint|}
+\\hline
+$text
+\\hline
+%\\end{tabular}
+\\end{longtable}
+";
+}
+
+$data =~ s/((?:(?:.+\|(?:.+\|?)*)\n)+)/\n@{[make_table($1)]}/g;
 
 # Shortcut for <= to \leqslant and >= \geqslant
 $data =~ s/<=/\\leqslant/g;
@@ -280,13 +362,27 @@ $data =~ s/¬([0-9]+?)¬/@{[chr($1)]}/g;
 ### Adding header and all
 
 my $documentclass = "";
-if(!$nomerging){
+if($merging){
     $documentclass = "a5paper, 10pt";
 } else {
     $documentclass = "a4paper, 11pt";
 }
 
+my $toc = "\\tableofcontents";
+if ($notoc){
+    $toc = "";
+}
+
 $data = "\\documentclass[$documentclass]{article}
+% Essential packages
+\\usepackage{amsmath}
+\\usepackage{amsthm}
+\\usepackage{amssymb}
+\\usepackage[french]{babel}
+\\usepackage[T1]{fontenc}
+\\usepackage{stmaryrd}
+\\usepackage{xstring}
+\\usepackage{longtable}
 \\usepackage{hyperref}
 \\hypersetup{
     colorlinks,
@@ -298,11 +394,11 @@ $data = "\\documentclass[$documentclass]{article}
 \\input{header.tex}
 \\author{$author}
 \\title{$title}
-\\date{\\today}
+\\date{$date}
 \\usepackage{xltxtra}
 \\begin{document}
 \\maketitle
-\\tableofcontents
+$toc
 $data
 \\hrulefill
 
@@ -333,7 +429,7 @@ if($stop_on_error){
 
 my $fold_command = "mv $filename.pdf $output $hide_output";
 
-if(!$nomerging){
+if($merging){
     $fold_command = "pdfnup $filename.pdf --nup '2x1' $hide_output; mv $filename-nup.pdf $output $hide_output";
 } elsif($folded){
     print "Folded activated\n";
