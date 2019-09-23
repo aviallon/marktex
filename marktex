@@ -10,6 +10,7 @@ my $noproofs = 0;
 my $debug = 0;
 my $folded = 0;
 my $nomerging = 0;
+my $stop_on_error = 0;
 
 if(scalar(@ARGV) == 0){
     print "Not enough arguments. Type $0 -h to print help\n";
@@ -18,7 +19,7 @@ if(scalar(@ARGV) == 0){
 
 my $file = $ARGV[-1];
 my $filename = $file;
-$filename =~ s/\.md$//;
+$filename =~ s/\.R?md$//;
 
 print "Options : ";
 
@@ -30,17 +31,20 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
         $arg =~ s/--(\w+)/$1/;
         
         if($arg eq "no-comments"){
-            print "; no comments";
+            print "no comments ;";
             $nocomments = 1;
         } elsif($arg eq "no-proofs"){
-            print "; no proofs";
+            print "no proofs ;";
             $noproofs = 1;
         } elsif($arg eq "no-page-merging"){
-            print "; no page merging";
+            print "no page merging ;";
             $nomerging = 1;
         } elsif($arg eq "folded"){
-            print "; folded";
+            print "folded ;";
             $folded = 1;
+        } elsif($arg eq "stop-on-error"){
+            print "stop-on-error ;";
+            $stop_on_error = 1;
         } elsif($arg eq "lesson-cards"){
             print "Making lesson card...";
             $nocomments = 1;
@@ -57,30 +61,31 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
         foreach my $option (@args) {
             if($option eq "o"){
                  $output = $ARGV[$i+1];
-                 print "; output to : $output";
+                 print "output to : $output ;";
             } elsif($option eq "c"){
-                 print "; clean";
+                 print "clean ;";
                  $clean = 1;
             } elsif($option eq "d"){
-                 print "; debug enabled";
+                 print "debug enabled ;";
                  $debug = 1;
             } elsif($option eq "h"){
                  print "Parses a restricted set of Mardown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
-                 
-                 Usage : $0 [-o output.pdf] input.md
-                 
-                 Options :
-                 
-                 -h     Prints this help
-                 -o     Change output filename
-                 -c     Clean temporary files left by parser and xelatex
-                 -d     Prints debug output
-                 
-                 --no-comments   Disables comments inside document (delimited by \@\@ and \@\@)
-                 --no-proofs    Replaces proofs by little message saying : Go see the full lesson
-                 --folded       Folds pages specialy for book printing
-                 --no-page-merging  Disables page merging (2 pages on one sheet)
-                 --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
+
+Usage : $0 [-o output.pdf] [-c] input.md
+
+Options :
+
+    -h     Prints this help
+    -o     Change output filename
+    -c     Clean temporary files left by parser and xelatex
+    -d     Prints debug output
+
+    --no-comments   Disables comments inside document (delimited by \@\@ and \@\@)
+    --no-proofs    Replaces proofs by little message saying : Go see the full lesson
+    --folded       Folds pages specialy for book printing
+    --stop-on-error    Stop processing file on error
+    --no-page-merging  Disables page merging (2 pages on one sheet)
+    --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
                  exit;
             } else {
                 print "Unrecognized argument : -$option. Type $0 -h to get help\n";
@@ -91,7 +96,7 @@ for (my $i = 0; $i < scalar(@ARGV); $i++) {
     
 }
 
-print ";\n";
+print "\n";
 
 my $data;
 {
@@ -143,6 +148,7 @@ $data =~ s/þ/\\displaystyle/g;
 #$data =~ s/((?:    .+\n)+)/\$ł\\par{\\leftskip4em\\texttt $1}\\par\$ł/g;
 #$data =~ s/    (.+)\n/\t$1\\\\\n/g;
 
+####### HEADER PARSING ########
 # Get title
 my $title = "Document sans nom";
 if($data =~ /---\n[\s\S]*title: ([^\n]+)\n[\s\S]*---/i ){
@@ -150,12 +156,20 @@ if($data =~ /---\n[\s\S]*title: ([^\n]+)\n[\s\S]*---/i ){
 } else {
     print "Warning : no title provided. Using default : $title\n";
 }
-# Get title
+# Get author
 my $author = "Antoine {\\scshape Viallon}";
 if($data =~ /---\n[\s\S]*author: ([^\n]+)\n[\s\S]*---/i ){
     $author = $1;
 } else {
     print "Warning : no author provided. Using default : $author\n";
+}
+
+# Get mode
+my $mode = "none";
+if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
+    $mode = $1;
+} else {
+    print "Warning : no mode provided. Using default : $mode\n";
 }
 
 # Delete everything inside --- at the begining
@@ -245,6 +259,16 @@ $data =~ s/((?:\t\\item .+\n)+)/\n\n\\begin{itemize}$1\n\\end{itemize}/g;
 $data =~ s/<=/\\leqslant/g;
 $data =~ s/>=/\\geqslant/g;
 
+# Shortcut for much greater and much lower
+$data =~ s/>>/\\gg/g;
+$data =~ s/<</\\ll/g;
+
+# Shortcut for "implies" in texts.
+$data =~ s/=>/\\ensuremath{\\Rightarrow}/g;
+
+# Because the "standard" epsilon is ugly
+$data =~ s/\\epsilon/\\varepsilon/g;
+
 # Workaround for $$ $$ - revert
 $data =~ s/\$\¶/\$\$/g;
 
@@ -263,6 +287,14 @@ if(!$nomerging){
 }
 
 $data = "\\documentclass[$documentclass]{article}
+\\usepackage{hyperref}
+\\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+} % Needed for clickable Table of contents
 \\input{header.tex}
 \\author{$author}
 \\title{$title}
@@ -294,6 +326,11 @@ if($debug){
     $hide_output = "";
 }
 
+my $cmd_end = ";";
+if($stop_on_error){
+    $cmd_end = "&&";
+}
+
 my $fold_command = "mv $filename.pdf $output $hide_output";
 
 if(!$nomerging){
@@ -307,7 +344,7 @@ print "Parsed file... sending to tex for processing : ";
 my $shell_output;
 my $xelatex_command = "";
 for(my $i=0; $i<3; $i++){
-    $xelatex_command = "$xelatex_command xelatex $filename.tex $print_debug;";
+    $xelatex_command = "$xelatex_command xelatex --interaction=nonstopmode $filename.tex $print_debug $cmd_end";
 }
 $shell_output = `$xelatex_command $fold_command`;
 print "done !\n";
