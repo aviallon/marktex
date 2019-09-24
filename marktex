@@ -249,10 +249,12 @@ sub no_maths{
     my $str = "$_[0]";
     if("$mode" eq "physics"){
         $str =~ s/_\{(.+?)\}/_{\\mathrm{$1}}/g;
-        #print "DEBUG: $str\n";
+        #print "DEBUG\t\t: $str\n";
         $str = "$str "; # Fixes some glitches because math mode is used by pictures too...
-        $str =~ s/ ([fpnµmkMGTP]?(?:[gmVALTFH]|(?:\\Omega)|(?:mol)))(\s)/ \\unit{$1}$2/g;
+        $str =~ s/ ((?:[fpnµmcdkMGTP°]?(?:[gmsVALTFHC]|(?:\\Omega)|(?:mol)|(?:SI))(?:(?:\^\{[0-9-]+?\})|(?:\^[2-9]))?[\/\.]?)+)(\s)/ \\unit{$1}$2/g;
+        $str =~ s/µ/\\mu{}/g;
         $str =~ s/ $//g;
+        #print "DEBUG - after\t: $str\n";
     }
     $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
     return $str;
@@ -359,6 +361,9 @@ $data =~ s/>=/\\geqslant/g;
 $data =~ s/>>/\\gg/g;
 $data =~ s/<</\\ll/g;
 
+# Changes degree char to degree symbol command, because otherwise, weird results are observed.
+#$data =~ s/°/\\degree{}/g;
+
 # Shortcut for "implies" in texts.
 $data =~ s/=>/\\ensuremath{\\Rightarrow}/g;
 
@@ -399,11 +404,12 @@ $data = "\\documentclass[$documentclass]{article}
 \\usepackage[french]{babel}
 \\usepackage{mathspec}
 \\usepackage{float}
-\\usepackage[T1]{fontenc}
+\\usepackage{fontenc}
 \\usepackage{stmaryrd}
 \\usepackage{xstring}
 \\usepackage{longtable}
 \\usepackage{hyperref}
+\\usepackage{gensymb}
 \\hypersetup{
     colorlinks,
     citecolor=black,
@@ -411,6 +417,8 @@ $data = "\\documentclass[$documentclass]{article}
     linkcolor=black,
     urlcolor=black
 } % Needed for clickable Table of contents
+% Used to display units in Physics results.
+\\newcommand{\\unit}[1]{\\ensuremath{\\ \\mathrm{#1}}}
 \\input{header.tex}
 \\author{$author}
 \\title{$title}
