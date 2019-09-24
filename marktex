@@ -159,7 +159,7 @@ sub picture_insert{
         return "Error while parsing image : wrong number of arguments";
     }
     my $str = "\
-\\begin{figure}[h!]
+\\begin{figure}[H]
 \\centering
 \\def\\svgwidth{\\columnwidth}
 \\includegraphics[width=0.8 \\textwidth]{$_[0]}";
@@ -198,8 +198,8 @@ $data =~ s/þ/\\displaystyle/g;
 # Delete everything inside --- at the begining
 $data =~ s/---\n[\w\W]*?---//;
 
-# Change 'Partie 1' to part 
-#         ========
+# Change '1) New part' to part 
+#         ===========
 $data =~ s/\n([0-9]+)\)\s(.+)\n={3,}\n/\n\\setcounter{part}{$1}\\addtocounter{part}{-1}\\part{$2}\n/g;
 
 # Change '# Chapitre' to chapters
@@ -249,6 +249,10 @@ sub no_maths{
     my $str = "$_[0]";
     if("$mode" eq "physics"){
         $str =~ s/_\{(.+?)\}/_{\\mathrm{$1}}/g;
+        #print "DEBUG: $str\n";
+        $str = "$str "; # Fixes some glitches because math mode is used by pictures too...
+        $str =~ s/ ([fpnµmkMGTP]?(?:[gmVALTFH]|(?:\\Omega)|(?:mol)))(\s)/ \\unit{$1}$2/g;
+        $str =~ s/ $//g;
     }
     $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
     return $str;
@@ -393,6 +397,8 @@ $data = "\\documentclass[$documentclass]{article}
 \\usepackage{amsthm}
 \\usepackage{amssymb}
 \\usepackage[french]{babel}
+\\usepackage{mathspec}
+\\usepackage{float}
 \\usepackage[T1]{fontenc}
 \\usepackage{stmaryrd}
 \\usepackage{xstring}
