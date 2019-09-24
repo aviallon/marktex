@@ -1,5 +1,6 @@
 #!/bin/perl
 
+package Marktex;
 use strict;
 use warnings;
 use Data::Dumper;
@@ -113,6 +114,40 @@ my $data;
     close $fh;
 }
 
+####### HEADER PARSING ########
+# Get title
+my $title = "Document sans nom";
+if($data =~ /---\n[\s\S]*title: ([^\n]+)\n[\s\S]*---/i ){
+    $title = $1;
+} else {
+    print "Warning : no title provided. Using default : $title\n";
+}
+# Get author
+my $author = "Antoine {\\scshape Viallon}";
+if($data =~ /---\n[\s\S]*author: ([^\n]+)\n[\s\S]*---/i ){
+    $author = $1;
+} else {
+    print "Warning : no author provided. Using default : $author\n";
+}
+
+# Get mode
+our $mode = "none";
+if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
+    $mode = $1;
+    print "Using mode : \'$mode\'\n";
+} else {
+    print "Warning : no mode provided. Using default : $mode\n";
+}
+
+# Get date
+my $date = "\\today";
+if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
+    $date = $1;
+} else {
+    print "Warning : no date provided. Using today's date\n";
+}
+
+######## CONTENT PARSING #######
 
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
@@ -159,38 +194,6 @@ $data =~ s/þ/\\displaystyle/g;
 # Special formating (code)
 #$data =~ s/((?:    .+\n)+)/\$ł\\par{\\leftskip4em\\texttt $1}\\par\$ł/g;
 #$data =~ s/    (.+)\n/\t$1\\\\\n/g;
-
-####### HEADER PARSING ########
-# Get title
-my $title = "Document sans nom";
-if($data =~ /---\n[\s\S]*title: ([^\n]+)\n[\s\S]*---/i ){
-    $title = $1;
-} else {
-    print "Warning : no title provided. Using default : $title\n";
-}
-# Get author
-my $author = "Antoine {\\scshape Viallon}";
-if($data =~ /---\n[\s\S]*author: ([^\n]+)\n[\s\S]*---/i ){
-    $author = $1;
-} else {
-    print "Warning : no author provided. Using default : $author\n";
-}
-
-# Get mode
-my $mode = "none";
-if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
-    $mode = $1;
-} else {
-    print "Warning : no mode provided. Using default : $mode\n";
-}
-
-# Get mode
-my $date = "\\today";
-if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
-    $date = $1;
-} else {
-    print "Warning : no date provided. Using today's date\n";
-}
 
 # Delete everything inside --- at the begining
 $data =~ s/---\n[\w\W]*?---//;
@@ -244,7 +247,10 @@ sub no_maths{
         return "Error while math expression...";
     }
     my $str = "$_[0]";
-    $str =~ s/(_|(?:\*{2}|[\^-]))/¬@{[ord($1)]}¬/g;
+    if("$mode" eq "physics"){
+        $str =~ s/_\{(.+?)\}/_{\\mathrm{$1}}/g;
+    }
+    $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
     return $str;
 }
 
@@ -279,6 +285,10 @@ sub make_table{
     my $n= scalar(@_);
     
     my @lines = split /(?<=\n)/, "$_[0]";
+    
+    if (scalar(@lines) <= 1){
+        return "$_[0]";
+    }
     
     my $ncols = 0;
     
