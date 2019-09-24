@@ -348,6 +348,10 @@ $data =~ s/<</\\ll/g;
 # Shortcut for "implies" in texts.
 $data =~ s/=>/\\ensuremath{\\Rightarrow}/g;
 
+# Shortcut for arrows
+$data =~ s/->/\\ensuremath{\\rightarrow}/g;
+$data =~ s/<-/\\ensuremath{\\leftarrow}/g;
+
 # Because the "standard" epsilon is ugly
 $data =~ s/\\epsilon/\\varepsilon/g;
 
@@ -417,9 +421,11 @@ close $newfile;
 
 my $print_debug = "";
 my $hide_output = "2>&1";
+my $interraction_mode = "--interaction=nonstopmode";
 if($debug){
     $print_debug = "1>&2";
     $hide_output = "";
+    $interraction_mode = "";
 }
 
 my $cmd_end = ";";
@@ -437,16 +443,18 @@ if($merging){
 }
 
 print "Parsed file... sending to tex for processing : ";
-my $shell_output;
+my $shell_output = "";
 my $xelatex_command = "";
 for(my $i=0; $i<3; $i++){
-    $xelatex_command = "$xelatex_command xelatex --interaction=nonstopmode $filename.tex $print_debug $cmd_end";
+    $xelatex_command = "xelatex $interraction_mode $filename.tex $print_debug $cmd_end";
+    $shell_output = `$xelatex_command $fold_command`;
+    print ("" . int(($i+1)*100/3 + 0.5) . " %...");
 }
-$shell_output = `$xelatex_command $fold_command`;
+#$shell_output = `$xelatex_command $fold_command`;
 print "done !\n";
 
 if($clean){
     print "Cleaning... ";
-    $shell_output = `rm -f $filename.tex *.log $filename.aux $filename.toc`;
+    $shell_output = `rm -f $filename.tex $filename.log $filename.aux $filename.toc $filename.out`;
     print "done\n";
 }
