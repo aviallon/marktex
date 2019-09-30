@@ -185,6 +185,8 @@ $data =~ s/\n!\[(.*)\]\(([^)]+)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
 $data =~ s/\$([^\$]*?)\$/\$@{[no_maths($1)]}\$/g;
 $data =~ s/ł([^ł]*?)ł/ł@{[no_maths($1)]}ł/g;
 
+$data =~ s/`([^`]*?)`/ł\\texttt{@{[no_maths($1)]}}ł/g;
+
 # Workaround for \begin
 $data =~ s/ł/\$ł/g;
 
@@ -303,6 +305,7 @@ sub make_table{
     for (my $i = 0; $i < scalar(@lines); $i++){
         my @cols = split /(?<=\s\|\s)/, $lines[$i];
         my $line = "";
+        my $make_hline = 0;
         for (my $j = 0; $j < scalar(@cols); $j++){
             my $temp = $cols[$j];
             $temp =~ s/((?:[^\s|] [^\s|]?)+)[\s|]*/$1/;
@@ -314,7 +317,12 @@ sub make_table{
             if ($i == 0){
                 $temp = "\\textbf{$temp}";
             }
-            unless ($temp =~ /^-+$/){
+            if ($temp =~ /^-+$/){
+                if($i > 1){
+                    $make_hline = 1;
+                    $j = scalar(@cols);
+                }
+            } else {
                 if ($j != 0){
                     $line = $line . " & ";
                 }
@@ -328,6 +336,8 @@ sub make_table{
             if ($i == 0){
                 $text = $text . "\\hline\n\\endhead\n";
             }
+        } elsif ($make_hline) {
+            $text = $text . "\\hline\n";
         }
         $lines[$i] = \@cols;
         $ncols = scalar(@cols);
@@ -352,6 +362,10 @@ $text
 }
 
 $data =~ s/((?:(?:.+\|(?:.+\|?)*)\n)+)/\n@{[make_table($1)]}/g;
+
+# Make links clickable
+$data =~ s/(\s)(https?:\/\/[\wéèàùê~#=&?\._\/-]+)(\s)/$1\\url{$2}$3/g;
+$data =~ s/\[([^\]]+)\]\((https?:\/\/[\wéèàùê~#=&?\._\/-]+)\)/\\textbf{\\texttt{\\href{$2}{$1}}}/g;
 
 # Shortcut for <= to \leqslant and >= \geqslant
 $data =~ s/<=/\\leqslant/g;
