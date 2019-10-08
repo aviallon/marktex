@@ -149,8 +149,15 @@ if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
 
 ######## CONTENT PARSING #######
 
+# Escape special chars with an \
+$data =~ s/\\([\$\[\]()@¤~>:\\\^*`])/¬@{[ord($1)]}¬/g;
+$data =~ s/\\([_])/\\¬@{[ord($1)]}¬/g; # this one needs special treatment
+
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
+
+# Allows to type % (comments special char in LaTeX) without putting an \ before
+$data =~ s/%/\\%/g;
 
 sub picture_insert{
     my $n = scalar(@_);
@@ -185,6 +192,32 @@ $data =~ s/\n!\[(.*)\]\(([^)]+)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
 $data =~ s/\$([^\$]*?)\$/\$@{[no_maths($1)]}\$/g;
 $data =~ s/ł([^ł]*?)ł/ł@{[no_maths($1)]}ł/g;
 
+sub return_each_line{
+    my $n= scalar(@_);
+    
+    my @lines = split /(?<=\n)/, "$_[0]";
+    
+    if (scalar(@lines) < 1){
+        print "Need a parameter !";
+        return "Bogus return each line without a parameter...";
+    }
+    
+    my $ret = "";
+    
+    for (my $i = 0; $i < scalar(@lines); $i++){
+        my $line = $lines[$i];
+        $line =~ s/\n//g;
+        $ret .= "\\hspace*{1cm}".$line . "\\\\\n";
+    }
+    return $ret;
+}
+
+# Code blocks
+#$data =~ s/\n```(.+)\n([\s\S]+?)```/\nCode : $1\\\\\nł\\texttt{@{[no_maths(return_each_line($2))]}}ł/mg;
+
+$data =~ s/\n```(.+)\n([\s\S]+?)```/\nł\\begin{minted}{$1}\n@{[no_maths($2)]}\\end{minted}/mg;
+
+# Inline code
 $data =~ s/`([^`]*?)`/ł\\texttt{@{[no_maths($1)]}}ł/g;
 
 # Workaround for \begin
@@ -365,7 +398,7 @@ $data =~ s/((?:(?:.+\|(?:.+\|?)*)\n)+)/\n@{[make_table($1)]}/g;
 
 # Make links clickable
 $data =~ s/(\s)(https?:\/\/[\wéèàùê~#=&?\._\/-]+)(\s)/$1\\url{$2}$3/g;
-$data =~ s/\[([^\]]+)\]\((https?:\/\/[\wéèàùê~#=&?\._\/-]+)\)/\\textbf{\\texttt{\\href{$2}{$1}}}/g;
+$data =~ s/\[([^\]]+)\]\((https?:\/\/[\wéèàùê~#=&?\._\/-]+)\)/\\textbf{\\href{$2}{\\textcolor{blue}{$1}}}/g;
 
 # Shortcut for <= to \leqslant and >= \geqslant
 $data =~ s/<=/\\leqslant/g;
@@ -420,7 +453,9 @@ $data = "\\documentclass[$documentclass]{article}
 \\usepackage{float}
 \\usepackage{fontenc}
 \\usepackage{stmaryrd}
+\\usepackage[cache=false]{minted}
 \\usepackage{xstring}
+\\usepackage[dvipsnames]{xcolor}
 \\usepackage{longtable}
 \\usepackage{hyperref}
 \\usepackage{gensymb}
@@ -484,7 +519,7 @@ print "Parsed file... sending to tex for processing : ";
 my $shell_output = "";
 my $xelatex_command = "";
 for(my $i=0; $i<3; $i++){
-    $xelatex_command = "xelatex $interraction_mode $filename.tex $print_debug $cmd_end";
+    $xelatex_command = "xelatex -shell-escape -8bit $interraction_mode $filename.tex $print_debug $cmd_end";
     $shell_output = `$xelatex_command $fold_command`;
     print ("" . int(($i+1)*100/3 + 0.5) . " %...");
 }
