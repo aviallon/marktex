@@ -150,8 +150,11 @@ if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
 ######## CONTENT PARSING #######
 
 # Escape special chars with an \
-$data =~ s/\\([\$\[\]()@¤~>:\\\^*`])/¬@{[ord($1)]}¬/g;
-$data =~ s/\\([_])/\\¬@{[ord($1)]}¬/g; # this one needs special treatment
+$data =~ s/\\([\[\]()@¤~><!:\\\^*`])/¬@{[ord($1)]}¬/g;
+$data =~ s/\\([_\$])/\\¬@{[ord($1)]}¬/g; # these ones needs special treatment because they have a meaning in LaTeX
+
+# Add comments
+$data =~ s/<!--[\s\S]*?-->//g;
 
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
