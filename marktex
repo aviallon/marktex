@@ -147,6 +147,28 @@ if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
     print "Warning : no date provided. Using today's date\n";
 }
 
+# Get avatars
+my $avatars = "";
+if($data =~ /---\n[\s\S]*avatars: ([^\n]+)\n[\s\S]*---/i ){
+    my @avatars = split /(?<=,)/, "$1";
+    $avatars = "\
+\\begin{figure}[H]
+\\centering";
+    foreach my $avatar (@avatars){
+        $avatar =~ s/,$//;
+        $avatars .= "\
+\\begin{subfigure}
+    \\centering
+    \\includegraphics[width=2.5cm]{$avatar}
+\\end{subfigure}";
+        print "Avatar : $avatar\n";
+    }
+    
+    $avatars .= "\\end{figure}";
+} else {
+    print "Warning : no avatar provided.\n";
+}
+
 ######## CONTENT PARSING #######
 
 # Escape special chars with an \
@@ -218,7 +240,7 @@ sub return_each_line{
 # Code blocks
 #$data =~ s/\n```(.+)\n([\s\S]+?)```/\nCode : $1\\\\\nł\\texttt{@{[no_maths(return_each_line($2))]}}ł/mg;
 
-$data =~ s/\n```(.+)\n([\s\S]+?)```/\nł\\begin{minted}{$1}\n@{[no_maths($2)]}\\end{minted}/mg;
+$data =~ s/\n```(.+)\n([\s\S]+?)```/\nł\\begin{minted}{$1}\n@{[no_special($2)]}\\end{minted}/mg;
 
 # Inline code
 $data =~ s/`([^`]*?)`/ł\\texttt{@{[no_maths($1)]}}ł/g;
@@ -278,6 +300,14 @@ if($noproofs){
     $data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\begin{proof}\n$1\n\\end{proof}/g;
 }
 
+sub no_special{
+    my $str = "$_[0]";
+    
+    $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
+    
+    return $str;
+}
+
 sub no_maths{
     my $n = scalar(@_);
     
@@ -294,8 +324,8 @@ sub no_maths{
         $str =~ s/ $//g;
         #print "DEBUG - after\t: $str\n";
     }
-    $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
-    return $str;
+    
+    return no_special($str);
 }
 
 # Change '_italique_' to italic text
@@ -318,7 +348,7 @@ $data =~ s/\^(.)/\\textsuperscript{$1}/g;
 
 
 # Put '#NUM)' in bold
-$data =~ s/\n\s*([0-9]+)\)(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\n\\par\\textbf{$1.}/g;
+$data =~ s/\n\s*([0-9]+)\)(\s)/\n\\par\\textbf{$1.}$2/g;
 
 # Put '-' as item
 $data =~ s/^\s*-\s+(.+)$/\t\\item $1/mg;
@@ -478,6 +508,7 @@ $data = "\\documentclass[$documentclass]{article}
 \\usepackage{xltxtra}
 \\begin{document}
 \\maketitle
+$avatars
 $toc
 $data
 \\hrulefill
