@@ -187,20 +187,26 @@ $data =~ s/%/\\%/g;
 sub picture_insert{
     my $n = scalar(@_);
     
-    if($n eq 0 or $n gt 2){
+    if($n eq 0 or $n gt 3){
         return "Error while parsing image : wrong number of arguments";
     }
+    my $width = "0.8 \\textwidth";
+    if($n eq 3){
+        $width = $_[2] . "cm";
+    }
+    
     my $str = "\
 \\begin{figure}[H]
 \\centering
 \\def\\svgwidth{\\columnwidth}
-\\includegraphics[width=0.8 \\textwidth]{$_[0]}";
+\\includegraphics[width=$width]{$_[0]}";
     if(defined($_[1])){
         $str = $str . "
 \\caption{$_[1]}";
     }
     $str = $str . "
 \\end{figure}";
+    #print $str;
     return $str;
 }
 
@@ -211,6 +217,7 @@ if($data =~ /\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ ){
 
 $data =~ s/\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ł\n@{[picture_insert($2, $1)]}ł/g;
 
+$data =~ s/\n!\[(.*)\]\(([^)]+?)\s+=([0-9]+(?:\.[0-9]*)?)\)/ł\n@{[picture_insert($2, $1, $3)]}ł\n/g;
 $data =~ s/\n!\[(.*)\]\(([^)]+)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
 
 # Encode special chars
