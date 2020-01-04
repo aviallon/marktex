@@ -178,6 +178,9 @@ $data =~ s/\\([_\$])/\\¬@{[ord($1)]}¬/g; # these ones needs special treatment 
 # Add comments
 $data =~ s/<!--[\s\S]*?-->//g;
 
+# Add some HTML like syntax
+$data =~ s/<br(?: \/)?>/\\\\/g;
+
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
 
@@ -217,8 +220,8 @@ if($data =~ /\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ ){
 
 $data =~ s/\n<pic(?: title="(.*)")?>([^><]+)<\/pic>/ł\n@{[picture_insert($2, $1)]}ł/g;
 
-$data =~ s/\n!\[(.*)\]\(([^)]+?)\s+=([0-9]+(?:\.[0-9]*)?)\)/ł\n@{[picture_insert($2, $1, $3)]}ł\n/g;
-$data =~ s/\n!\[(.*)\]\(([^)]+)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
+$data =~ s/\s!\[(.*?)\]\(([^)]+?)\s+=([0-9]+(?:\.[0-9]*)?)\)/ł\n@{[picture_insert($2, $1, $3)]}ł\n/g;
+$data =~ s/\s!\[(.*?)\]\(([^)]+?)\)/ł\n@{[picture_insert($2, $1)]}ł\n/g;
 
 # Encode special chars
 $data =~ s/\$([^\$]*?)\$/\$@{[no_maths($1)]}\$/g;
@@ -312,6 +315,12 @@ sub no_special{
     
     $str =~ s/(_|(?:\*{2}|[\^-])|\|)/¬@{[ord($1)]}¬/g;
     
+    my $antislash = ord("\\");
+    
+    #print $str;
+    
+    $str =~ s/(\s)¬92¬\s/$1\\\\\n/g;
+    
     return $str;
 }
 
@@ -357,10 +366,20 @@ $data =~ s/\^(.)/\\textsuperscript{$1}/g;
 # Put '#NUM)' in bold
 $data =~ s/\n\s*([0-9]+)\)(\s)/\n\\par\\textbf{$1.}$2/g;
 
+# Quotes
+$data =~ s/^((?:> .+\n)+)/\n\n\\say{$1}\n/g;
+$data =~ s/^> (.+?) *\n/$1\n/g;
+
 # Put '-' as item
 $data =~ s/^\s*-\s+(.+)$/\t\\item $1/mg;
 # Put items inside lists
 $data =~ s/((?:\t\\item .+\n)+)/\n\n\\begin{itemize}$1\n\\end{itemize}\n/g;
+
+# Put '#.' as item
+$data =~ s/^\s*[0-9]+\.\s+(.+)$/\t\\nitem $1/mg; # dirty hack required to not overwrite the previous lists
+# Put items inside enumerates
+$data =~ s/((?:\t\\nitem .+\n)+)/\n\n\\begin{enumerate}$1\n\\end{enumerate}\n/g;
+$data =~ s/\\nitem/\\item/g;
 
 sub make_table{
     my $n= scalar(@_);
@@ -483,16 +502,42 @@ if ($notoc){
     $toc = "";
 }
 
-$data = "\\documentclass[$documentclass]{article}
-% Essential packages
-\\usepackage{amsmath}
+my $packages = "\\usepackage{amsmath}
 \\usepackage{amsthm}
 \\usepackage{amssymb}
-\\usepackage[french]{babel}
 \\usepackage{mathspec}
 \\usepackage{float}
 \\usepackage{fontenc}
 \\usepackage{stmaryrd}
+\\usepackage{dirtytalk}
+\\usepackage[french]{babel}";
+
+if($mode eq "russian"){
+    $packages = "\\usepackage[utf8x]{inputenc}
+\\usepackage{hyphenat}
+\\hyphenation{ма-те-ма-ти-ка вос-ста-нав-ли-вать}
+\\usepackage[french]{babel}";
+}
+
+my $shortcuts = "\\theoremstyle{plain}
+\\newtheorem{theorem}{Théorème}[section]
+\\newtheorem{proposition}[theorem]{Proposition}
+\\newtheorem*{lemme}{Lemme}
+
+\\theoremstyle{definition}
+\\newtheorem{definition}{Définition}[section]
+
+\\theoremstyle{remark}
+\\newtheorem*{remarque}{Remarque}
+
+\\counterwithin*{section}{part}";
+if($mode ne "maths" and $mode ne "physics"){
+    $shortcuts = "";
+}
+
+$data = "\\documentclass[$documentclass]{article}
+% Essential packages
+$packages
 \\usepackage[cache=false]{minted}
 \\usepackage{xstring}
 \\usepackage[dvipsnames]{xcolor}
@@ -509,6 +554,7 @@ $data = "\\documentclass[$documentclass]{article}
 % Used to display units in Physics results.
 \\newcommand{\\unit}[1]{\\ensuremath{\\ \\mathrm{#1}}}
 \\input{header.tex}
+$shortcuts
 \\author{$author}
 \\title{$title}
 \\date{$date}
@@ -547,20 +593,20 @@ if($stop_on_error){
     $cmd_end = "&&";
 }
 
-my $fold_command = "mv $filename.pdf $output $hide_output";
+my $fold_command = "mv '$filename.pdf' '$output' $hide_output";
 
 if($merging){
-    $fold_command = "pdfnup $filename.pdf --nup '2x1' $hide_output; mv $filename-nup.pdf $output $hide_output";
+    $fold_command = "pdfnup '$filename.pdf' --nup '2x1' $hide_output; mv '$filename-nup.pdf' '$output' $hide_output";
 } elsif($folded){
     print "Folded activated\n";
-    $fold_command = "pdfbook --batch $filename.pdf $hide_output; mv $filename-book.pdf $output $hide_output";
+    $fold_command = "pdfbook --batch '$filename.pdf' $hide_output; mv '$filename-book.pdf' '$output' $hide_output";
 }
 
 print "Parsed file... sending to tex for processing : ";
 my $shell_output = "";
 my $xelatex_command = "";
 for(my $i=0; $i<3; $i++){
-    $xelatex_command = "xelatex -shell-escape -8bit $interraction_mode $filename.tex $print_debug $cmd_end";
+    $xelatex_command = "xelatex -shell-escape -8bit $interraction_mode '$filename.tex' $print_debug $cmd_end";
     $shell_output = `$xelatex_command $fold_command`;
     print ("" . int(($i+1)*100/3 + 0.5) . " %...");
 }
@@ -569,6 +615,6 @@ print "done !\n";
 
 if($clean){
     print "Cleaning... ";
-    $shell_output = `rm -f $filename.tex $filename.log $filename.aux $filename.toc $filename.out`;
+    $shell_output = `rm -f '$filename.tex' '$filename.log' '$filename.aux' '$filename.toc' '$filename.out'`;
     print "done\n";
 }
