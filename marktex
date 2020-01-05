@@ -179,7 +179,7 @@ $data =~ s/\\([_\$])/\\¬@{[ord($1)]}¬/g; # these ones needs special treatment 
 $data =~ s/<!--[\s\S]*?-->//g;
 
 # Add some HTML like syntax
-$data =~ s/<br(?: \/)?>/\\\\/g;
+$data =~ s/<br(?: \/)?>/\n/g;
 
 # Workaround for $$ $$
 $data =~ s/\$\$/\$¶/g;
@@ -378,7 +378,7 @@ $data =~ s/((?:\t\\item .+\n)+)/\n\n\\begin{itemize}$1\n\\end{itemize}\n/g;
 # Put '#.' as item
 $data =~ s/^\s*[0-9]+\.\s+(.+)$/\t\\nitem $1/mg; # dirty hack required to not overwrite the previous lists
 # Put items inside enumerates
-$data =~ s/((?:\t\\nitem .+\n)+)/\n\n\\begin{enumerate}$1\n\\end{enumerate}\n/g;
+$data =~ s/((?:\t\\nitem .+\n)+)/\n\n\\begin{enumerate}\n$1\n\\end{enumerate}\n/g;
 $data =~ s/\\nitem/\\item/g;
 
 sub make_table{
