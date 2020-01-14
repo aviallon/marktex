@@ -92,6 +92,7 @@ Options :
     --no-proofs    Replaces proofs by little message saying : Go see the full lesson
     --folded       Folds pages specialy for book printing
     --stop-on-error    Stop processing file on error
+    --no-toc    Do not add a Table of Contents
     --no-page-merging  Disables page merging (2 pages on one sheet)
     --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
                  exit;
@@ -117,14 +118,14 @@ my $data;
 ####### HEADER PARSING ########
 # Get title
 my $title = "Document sans nom";
-if($data =~ /---\n[\s\S]*title: ([^\n]+)\n[\s\S]*---/i ){
+if($data =~ /---[\s\S]*\ntitle: ([^\n]+)\n[\s\S]*---/i ){
     $title = $1;
 } else {
     print "Warning : no title provided. Using default : $title\n";
 }
 # Get author
 my $author = "Antoine {\\scshape Viallon}";
-if($data =~ /---\n[\s\S]*author: ([^\n]+)\n[\s\S]*---/i ){
+if($data =~ /---[\s\S]*\nauthor: ([^\n]+)\n[\s\S]*---/i ){
     $author = $1;
 } else {
     print "Warning : no author provided. Using default : $author\n";
@@ -132,7 +133,7 @@ if($data =~ /---\n[\s\S]*author: ([^\n]+)\n[\s\S]*---/i ){
 
 # Get mode
 our $mode = "none";
-if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
+if($data =~ /---[\s\S]*\nmode: ([^\n]+)\n[\s\S]*---/i ){
     $mode = $1;
     print "Using mode : \'$mode\'\n";
 } else {
@@ -141,7 +142,7 @@ if($data =~ /---\n[\s\S]*mode: ([^\n]+)\n[\s\S]*---/i ){
 
 # Get date
 my $date = "\\today";
-if($data =~ /---\n[\s\S]*date: ([^\n]+)\n[\s\S]*---/i ){
+if($data =~ /---[\s\S]*\ndate: ([^\n]+)\n[\s\S]*---/i ){
     $date = $1;
 } else {
     print "Warning : no date provided. Using today's date\n";
@@ -494,7 +495,7 @@ my $documentclass = "";
 if($merging){
     $documentclass = "a5paper, 10pt";
 } else {
-    $documentclass = "a4paper, 11pt";
+    $documentclass = "a4paper, 10pt";
 }
 
 my $toc = "\\tableofcontents";
@@ -502,7 +503,32 @@ if ($notoc){
     $toc = "";
 }
 
-my $packages = "\\usepackage{amsmath}
+my $authors_footer = "";
+my @authors_list = split /(?<=[,-])/, "$author";
+    
+if (scalar(@authors_list) > 0){
+    for (my $i = 0; $i < scalar(@authors_list); $i++){
+        my $cur_author = $authors_list[$i];
+        $cur_author =~ s/\\\w+\{(.+)\}/$1/i;
+        $cur_author =~ s/\{\\\w+(.+)\}/$1/i;
+        print $cur_author;
+        my $initiale = "";
+        my $surname = "";
+        if ($cur_author =~ /([A-Za-z])[A-Za-z]*\s+([A-Za-z]+)/i){
+            $initiale = $1;
+            $surname = $2;
+        }
+        $authors_footer .= "$initiale. $surname";
+        if ($i != scalar(@authors_list) - 1) {
+            $authors_footer .= " - ";
+        }
+    }
+} else {
+    $authors_footer = "A. Viallon";
+}
+
+my $packages = "\
+\\usepackage{amsmath}
 \\usepackage{amsthm}
 \\usepackage{amssymb}
 \\usepackage{mathspec}
@@ -510,6 +536,7 @@ my $packages = "\\usepackage{amsmath}
 \\usepackage{fontenc}
 \\usepackage{stmaryrd}
 \\usepackage{dirtytalk}
+\\usepackage{multicol}
 \\usepackage[french]{babel}";
 
 if($mode eq "russian"){
@@ -535,7 +562,7 @@ if($mode ne "maths" and $mode ne "physics"){
     $shortcuts = "";
 }
 
-$data = "\\documentclass[$documentclass]{article}
+$data = "\\documentclass[$documentclass]{extarticle}
 % Essential packages
 $packages
 \\usepackage[cache=false]{minted}
@@ -553,6 +580,25 @@ $packages
 } % Needed for clickable Table of contents
 % Used to display units in Physics results.
 \\newcommand{\\unit}[1]{\\ensuremath{\\ \\mathrm{#1}}}
+% Reduce TOC
+\\makeatletter
+\\renewcommand*\\l\@section{\\vspace{12pt}\\bfseries\\\@dottedtocline{1}{0em}{2em}}
+\\renewcommand*\\l\@subsection{\\normalfont\\\@dottedtocline{1}{0em}{2em}}
+\\renewcommand*\\l\@subsubsection{\\normalfont\\\@dottedtocline{1}{2em}{3.5em}}
+% More space between equation lines
+\\renewcommand*{\\arraystretch}{1.5}
+% Page footer
+\\usepackage{fancyhdr}
+\\usepackage{lastpage}
+\\pagestyle{fancy}
+\\renewcommand{\\headrulewidth}{0pt}
+\\renewcommand{\\footrulewidth}{1pt}
+\\fancyhf{}
+\\fancyfoot[RE,LO]{
+  $authors_footer
+}
+\\fancyfoot[LE,RO]{Page \\thepage/\\pageref{LastPage}}
+\\makeatother
 \\input{header.tex}
 $shortcuts
 \\author{$author}
