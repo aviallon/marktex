@@ -137,7 +137,16 @@ if($data =~ /---[\s\S]*\nmode: ([^\n]+)\n[\s\S]*---/i ){
     $mode = $1;
     print "Using mode : \'$mode\'\n";
 } else {
-    print "Warning : no mode provided. Using default : $mode\n";
+    print "Notice : no mode provided. Using default : $mode\n";
+}
+
+# Get info message
+my $info = "";
+if($data =~ /---[\s\S]*\ninfo: ([^\n]+)\n[\s\S]*---/i ){
+    $info = $1;
+    print "Info string : \'$info\'\n";
+} else {
+    print "Notice : no info string provided.\n";
 }
 
 # Get date
@@ -504,21 +513,23 @@ if ($notoc){
 }
 
 my $authors_footer = "";
-my @authors_list = split /(?<=[,-])/, "$author";
+my $author_preprocess = $author;
+$author_preprocess =~ s/et/,/i;
+my @authors_list = split /(?<=[,])/, "$author_preprocess";
     
 if (scalar(@authors_list) > 0){
     for (my $i = 0; $i < scalar(@authors_list); $i++){
         my $cur_author = $authors_list[$i];
         $cur_author =~ s/\\\w+\{(.+)\}/$1/i;
         $cur_author =~ s/\{\\\w+(.+)\}/$1/i;
-        print $cur_author;
-        my $initiale = "";
+        print "author: $cur_author\n";
+        my $initiales = "";
         my $surname = "";
-        if ($cur_author =~ /([A-Za-z])[A-Za-z]*\s+([A-Za-z]+)/i){
-            $initiale = $1;
+        if ($cur_author =~ /([A-Za-z])[A-Za-z-]*\s+([A-Za-z-]+)/i){
+            $initiales = $1;
             $surname = $2;
         }
-        $authors_footer .= "$initiale. $surname";
+        $authors_footer .= "$initiales. $surname";
         if ($i != scalar(@authors_list) - 1) {
             $authors_footer .= " - ";
         }
@@ -587,6 +598,13 @@ $packages
 \\renewcommand*\\l\@subsubsection{\\normalfont\\\@dottedtocline{1}{2em}{3.5em}}
 % More space between equation lines
 \\renewcommand*{\\arraystretch}{1.5}
+\\newcommand{\\avatar}[1]{
+\\begin{figure}[H]
+    \\centering
+    \\def\\svgwidth{\\columnwidth}
+    \\includegraphics[width=2.5cm]{#1}
+\\end{figure}
+}
 % Page footer
 \\usepackage{fancyhdr}
 \\usepackage{lastpage}
@@ -601,7 +619,7 @@ $packages
 \\makeatother
 \\input{header.tex}
 $shortcuts
-\\author{$author}
+\\author{$author \\\\ {\\normalsize{}$info}}
 \\title{$title}
 \\date{$date}
 \\usepackage{xltxtra}
