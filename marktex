@@ -5,6 +5,8 @@ use strict;
 use warnings;
 use Data::Dumper;
 
+$SIG{INT} = sub { die "Cancelled by user $!" };
+
 my $output = '';
 my $clean = 0;
 my $nocomments = 0;
