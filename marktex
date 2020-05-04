@@ -516,7 +516,7 @@ if ($notoc){
 
 my $authors_footer = "";
 my $author_preprocess = $author;
-$author_preprocess =~ s/et/,/i;
+$author_preprocess =~ s/ (et)|& /,/i;
 my @authors_list = split /(?<=[,])/, "$author_preprocess";
     
 if (scalar(@authors_list) > 0){
@@ -553,10 +553,10 @@ my $packages = "\
 \\usepackage[french]{babel}";
 
 if($mode eq "russian"){
-    $packages = "\\usepackage[utf8x]{inputenc}
+    $packages = "\\usepackage[utf8]{inputenc}
 \\usepackage{hyphenat}
 \\hyphenation{ма-те-ма-ти-ка вос-ста-нав-ли-вать}
-\\usepackage[french]{babel}";
+\\usepackage[russian,french]{babel}";
 }
 
 my $shortcuts = "\\theoremstyle{plain}
