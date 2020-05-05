@@ -552,6 +552,12 @@ my $packages = "\
 \\usepackage{multicol}
 \\usepackage[french]{babel}";
 
+
+my $input_header = "";
+if(-f "header.tex") {
+    $input_header = "\\input{header.tex}";
+}
+
 if($mode eq "russian"){
     $packages = "\\usepackage[utf8]{inputenc}
 \\usepackage{hyphenat}
@@ -619,7 +625,7 @@ $packages
 }
 \\fancyfoot[LE,RO]{Page \\thepage/\\pageref{LastPage}}
 \\makeatother
-\\input{header.tex}
+$input_header
 $shortcuts
 \\author{$author \\\\ {\\normalsize{}$info}}
 \\title{$title}
