@@ -1,0 +1,81 @@
+.TH MARKTEX 1
+.SH NAME
+marktex	\- compiles marktex files (close to Markdown R syntax) into pdf
+.SH SYNOPSYS
+.B marktex
+[\fB\-o\fR OUTPUT_FILE]
+[\fB\-chd]
+[\fB\-\-no\-comments]
+[\fB\-\-no\-proofs]
+[\fB\-\-folded]
+[\fB\-\-stop-on-error]
+[\fB\-\-no\-toc]
+[\fB\-\-no\-page\-merging]
+[\fB\-\-lesson\-cards]
+.IR file ...
+.SH DESCRIPTION
+Parses a restricted set of Markdown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
+.SH OPTIONS
+.TP
+.BR \-h
+Display help message
+.TP
+.BR \-c
+Clean intermediate files after PDF generation
+.TP
+.BR \-d
+Print debug output
+.TP
+.BR \-o " " \fIOUTPUT_FILE\fR
+Changes the default output file (which is the name of the input file with \fI.pdf\fR as extension)
+.TP
+.TP
+.BR \-\-no\-comments
+Strip comments out of output files. See \fBSYNTAX\fR for making comments.
+.TP
+.BR \-\-no\-proofs
+Replaces proofs by little message saying "Go see the full lesson"
+.TP
+.BR \-\-folded
+Folds pages specialy for book printing
+.TP
+.BR \-\-stop\-on\-error
+Stop processing the file on the first error
+.TP
+.BR \-\-no\-toc
+Do not automatically add a Table of Contents
+.TP
+.BR \-\-page\-merging
+Merge pages (two pages on one sheet of paper)
+.TP
+.BR \-\-lesson-cards
+Shortcut for \fI--no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\fR
+.SH SYNTAX
+Here is documented the special add-ons Marktex adds to Markdown and LaTeX
+.TP
+.BR ">(Proposition name)"
+Start a proposition. It is ended with \fB[]\fR (a square point made with brackets).
+.TP
+.BR ":(Definition name)"
+Same as propositions, but for definitions
+.TP
+.BR "~(Theorem name)"
+Likewise.
+.TP
+.BR ">-"
+Start an \fBunnnamed\fR Lemma. A whitespace is needed after the \fB>-\fR
+.TP
+.BR ¤
+Start a proof (no title). A whitespace is also required after the marker.
+.TP
+.BR þ " " MATH " " þ
+In \fBmath mode (only)\fR, enables \fI\\displaystyle\fR
+.TP
+.BR Chapters
+They are defined like that:
+.nf
+.RS
+3) Pythagoras
+============
+.RE
+.fi
