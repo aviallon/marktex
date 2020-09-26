@@ -8,7 +8,19 @@ use Data::Dumper;
 
 $SIG{INT} = sub { die "Cancelled by user $!" };
 
+our %OPTIONS = (
+    "clean" => 0,
+    "nocomments" => 0,
+    "noproofs" => 0,
+    "debug" => 0,
+    "folder" => 0,
+    "merging" => 0,
+    "stop_on_error" => 0,
+    "notoc" => 0,
+);
+
 my $output = '';
+
 my $clean = 0;
 my $nocomments = 0;
 my $noproofs = 0;
@@ -27,178 +39,224 @@ my $file = $ARGV[-1];
 my $filename = $file;
 $filename =~ s/\.R?md$//;
 
-print "Options : ";
+sub print_help() {
+    print "Parses a restricted set of Mardown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
 
-for (my $i = 0; $i < scalar(@ARGV); $i++) {
-    my @args;
-    
-    if ($ARGV[$i] =~ m/^--\w+/){
-        my $arg = $ARGV[$i];
-        $arg =~ s/--(\w+)/$1/;
-        
-        if($arg eq "no-comments"){
-            print "no comments ; ";
-            $nocomments = 1;
-        } elsif($arg eq "no-proofs"){
-            print "no proofs ; ";
-            $noproofs = 1;
-        } elsif($arg eq "page-merging"){
-            print "page merging ; ";
-            $merging = 1;
-        } elsif($arg eq "no-toc"){
-            print "no table of contents ; ";
-            $notoc = 1;
-        } elsif($arg eq "folded"){
-            print "folded ; ";
-            $folded = 1;
-        } elsif($arg eq "stop-on-error"){
-            print "stop-on-error ; ";
-            $stop_on_error = 1;
-        } elsif($arg eq "lesson-cards"){
-            print "Making lesson card...";
-            $nocomments = 1;
-            $noproofs = 1;
-            $folded = 1;
-            $clean = 1;
-            $output = "$filename-fiche.pdf";
-        } else {
-            print "UNKNOWN OPTION: $arg ; ";
-        }
-    } elsif($ARGV[$i] =~ m/^-[a-z]+/){
-        my $temp = $ARGV[$i];
-        $temp =~ s/-([a-z]+)/$1/;
-        @args = split //, $temp;
-        
-        foreach my $option (@args) {
-            if($option eq "o"){
-                 $output = $ARGV[$i+1];
-                 print "output to : $output ;";
-            } elsif($option eq "c"){
-                 print "clean ;";
-                 $clean = 1;
-            } elsif($option eq "d"){
-                 print "debug enabled ;";
-                 $debug = 1;
-            } elsif($option eq "h"){
-                 print "Parses a restricted set of Mardown marking into Latex, plus some special extensions designed to be useful when writing a math lesson in Latex.
+    Usage : $0 [-o output.pdf] [-c] input.md
 
-Usage : $0 [-o output.pdf] [-c] input.md
+    Options :
 
-Options :
+        -h     Prints this help
+        -o     Change output filename
+        -c     Clean temporary files left by parser and xelatex
+        -d     Prints debug output
 
-    -h     Prints this help
-    -o     Change output filename
-    -c     Clean temporary files left by parser and xelatex
-    -d     Prints debug output
-
-    --no-comments   Disables comments inside document (delimited by \@\@ and \@\@)
-    --no-proofs    Replaces proofs by little message saying : Go see the full lesson
-    --folded       Folds pages specialy for book printing
-    --stop-on-error    Stop processing file on error
-    --no-toc    Do not add a Table of Contents
-    --page-merging  Enables page merging (2 pages on one sheet)
-    --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
-                 exit;
-            } else {
-                print "Unrecognized argument : -$option. Type $0 -h to get help\n";
-                exit;
-            }
-        }
-    }
-    
+        --no-comments   Disables comments inside document (delimited by \@\@ and \@\@)
+        --no-proofs    Replaces proofs by little message saying : Go see the full lesson
+        --folded       Folds pages specialy for book printing
+        --stop-on-error    Stop processing file on error
+        --no-toc    Do not add a Table of Contents
+        --page-merging  Enables page merging (2 pages on one sheet)
+        --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
 }
 
-print "\n";
+sub print_options {
+    print "Options :";
+    foreach my $option (keys %OPTIONS) {
+        if($OPTIONS{$option}) {
+            print " $option = " . $OPTIONS{$option} . " ;";
+        }
+    }
+    print "\n";
+}
+
+sub parse_args {
+    my @arglist = @_;
+    
+    for (my $i = 0; $i < scalar(@arglist); $i++) {
+        my @args;
+        
+        if ($arglist[$i] =~ m/^--\w+/){
+            my $arg = $arglist[$i];
+            $arg =~ s/--(\w+)/$1/;
+            
+            if($arg eq "no-comments"){
+                $OPTIONS{nocomments} = 1;
+            } elsif($arg eq "no-proofs"){
+                $OPTIONS{noproofs} = 1;
+            } elsif($arg eq "page-merging"){
+                $OPTIONS{merging} = 1;
+            } elsif($arg eq "no-toc"){
+                $OPTIONS{notoc} = 1;
+            } elsif($arg eq "folded"){
+                $OPTIONS{folded} = 1;
+            } elsif($arg eq "stop-on-error"){
+                $OPTIONS{stop_on_error} = 1;
+            } elsif($arg eq "lesson-cards"){
+                print "Making lesson card...\n";
+                $OPTIONS{nocomments} = 1;
+                $OPTIONS{noproofs} = 1;
+                $OPTIONS{folded} = 1;
+                $OPTIONS{clean} = 1;
+                $output = "$filename-fiche.pdf";
+            } else {
+                print "UNKNOWN OPTION: $arg\n";
+            }
+        } elsif($arglist[$i] =~ m/^-[a-z]+/){
+            my $temp = $arglist[$i];
+            $temp =~ s/-([a-z]+)/$1/;
+            @args = split //, $temp;
+            
+            foreach my $option (@args) {
+                if($option eq "o"){
+                    $output = $arglist[$i+1];
+                    print "Output to : $output\n";
+                } elsif($option eq "c"){
+                    $OPTIONS{clean} = 1;
+                } elsif($option eq "d"){
+                    $OPTIONS{debug} = 1;
+                } elsif($option eq "h"){
+                    print_help();
+                    exit;
+                } else {
+                    print "Unrecognized argument : -$option. Type $0 -h to get help\n";
+                    exit;
+                }
+            }
+        }
+        
+    }
+}
+
+my $no_file = 0;
 
 my $data;
 {
-    open my $fh, '<', $file or die "File not found";
-    local $/ = undef;
-    $data = <$fh>;
-    close $fh;
-}
-
-####### HEADER PARSING ########
-# Get title
-my $title = "Document sans nom";
-if($data =~ /---[\s\S]*\ntitle: ([^\n]+)\n[\s\S]*---/i ){
-    $title = $1;
-} else {
-    print "Warning : no title provided. Using default : $title\n";
-}
-# Get author
-my $author = "Antoine {\\scshape Viallon}";
-if($data =~ /---[\s\S]*\nauthor: ([^\n]+)\n[\s\S]*---/i ){
-    $author = $1;
-} else {
-    print "Warning : no author provided. Using default : $author\n";
-}
-
-# Get mode
-our $mode = "none";
-if($data =~ /---[\s\S]*\nmode: ([^\n]+)\n[\s\S]*---/i ){
-    $mode = $1;
-    print "Using mode : \'$mode\'\n";
-} else {
-    print "Notice : no mode provided. Using default : $mode\n";
-}
-
-# Get options
-our $options = "";
-if($data =~ /---[\s\S]*\noptions: ([^\n]+)\n[\s\S]*---/i ){
-    $options = $1;
-    print "[NYI] Using options : \'$mode\'\n";
-} else {
-    print "Notice : Using default options\n";
-}
-
-# Get options
-our $type = "article";
-if($data =~ /---[\s\S]*\ntype: ([^\n]+)\n[\s\S]*---/i ){
-    $type = $1;
-    print "Using type : \'$type\'\n";
-} else {
-    print "Notice : Using default type: \'$type\'\n";
-}
-
-# Get info message
-my $info = "";
-if($data =~ /---[\s\S]*\ninfo: ([^\n]+)\n[\s\S]*---/i ){
-    $info = $1;
-    print "Info string : \'$info\'\n";
-} else {
-    print "Notice : no info string provided.\n";
-}
-
-# Get date
-my $date = "\\today";
-if($data =~ /---[\s\S]*\ndate: ([^\n]+)\n[\s\S]*---/i ){
-    $date = $1;
-} else {
-    print "Warning : no date provided. Using today's date\n";
-}
-
-# Get avatars
-my $avatars = "";
-if($data =~ /---\n[\s\S]*avatars: ([^\n]+)\n[\s\S]*---/i ){
-    my @avatars = split /(?<=,)/, "$1";
-    $avatars = "\
-\\begin{figure}[H]
-\\centering";
-    foreach my $avatar (@avatars){
-        $avatar =~ s/,$//;
-        $avatars .= "\
-\\begin{subfigure}
-    \\centering
-    \\includegraphics[width=2.5cm]{$avatar}
-\\end{subfigure}";
-        print "Avatar : $avatar\n";
+    if(open (my $fh, '<', $file) ){
+        local $/ = undef;
+        $data = <$fh>;
+        close $fh;
+    } else {
+        $no_file = 1;
     }
-    
-    $avatars .= "\\end{figure}";
-} else {
-    print "Warning : no avatar provided.\n";
 }
+
+our $title;
+our $author;
+our $mode;
+our $options;
+our $type;
+our $info;
+our $date;
+our $avatars;
+
+if (!$no_file) {
+
+    ####### BEGIN HEADER PARSING ########
+    # Get title
+    $title = "Document sans nom";
+    if($data =~ /---[\s\S]*\ntitle: ([^\n]+)\n[\s\S]*---/i ){
+        $title = $1;
+    } else {
+        print "Warning : no title provided. Using default : $title\n";
+    }
+    # Get author
+    $author = "Antoine {\\scshape Viallon}";
+    if($data =~ /---[\s\S]*\nauthor: ([^\n]+)\n[\s\S]*---/i ){
+        $author = $1;
+    } else {
+        print "Warning : no author provided. Using default : $author\n";
+    }
+
+    # Get mode
+    $mode = "none";
+    if($data =~ /---[\s\S]*\nmode: ([^\n]+)\n[\s\S]*---/i ){
+        $mode = $1;
+        print "Using mode : \'$mode\'\n";
+    } else {
+        print "Notice : no mode provided. Using default : $mode\n";
+    }
+
+    # Get options
+    $options = "";
+    if($data =~ /---[\s\S]*\noptions: ([^\n]+)\n[\s\S]*---/i ){
+        $options = $1;
+        my @args = split /,/, $options;
+        for(my $i = 0; $i < scalar(@args); $i++){
+            $args[$i] = "--" . $args[$i];
+        }
+        parse_args(@args);
+        print "[NYI] Using options : \'$options\'\n";
+    } else {
+        print "Notice : Using default options\n";
+    }
+
+    # Get document type
+    $type = "article";
+    if($data =~ /---[\s\S]*\ntype: ([^\n]+)\n[\s\S]*---/i ){
+        $type = $1;
+        print "Using type : \'$type\'\n";
+    } else {
+        print "Notice : Using default type: \'$type\'\n";
+    }
+
+    # Get info message
+    $info = "";
+    if($data =~ /---[\s\S]*\ninfo: ([^\n]+)\n[\s\S]*---/i ){
+        $info = $1;
+        print "Info string : \'$info\'\n";
+    } else {
+        print "Notice : no info string provided.\n";
+    }
+
+    # Get date
+    $date = "\\today";
+    if($data =~ /---[\s\S]*\ndate: ([^\n]+)\n[\s\S]*---/i ){
+        $date = $1;
+    } else {
+        print "Warning : no date provided. Using today's date\n";
+    }
+
+    # Get avatars
+    $avatars = "";
+    if($data =~ /---\n[\s\S]*avatars: ([^\n]+)\n[\s\S]*---/i ){
+        my @avatars = split /(?<=,)/, "$1";
+        $avatars = "\
+    \\begin{figure}[H]
+    \\centering";
+        foreach my $avatar (@avatars){
+            $avatar =~ s/,$//;
+            $avatars .= "\
+    \\begin{subfigure}
+        \\centering
+        \\includegraphics[width=2.5cm]{$avatar}
+    \\end{subfigure}";
+            print "Avatar : $avatar\n";
+        }
+        
+        $avatars .= "\\end{figure}";
+    } else {
+        print "Warning : no avatar provided.\n";
+    }
+
+
+    ####### END HEADER PARSING #######
+    
+}
+
+####### BEGIN OPTIONS PARSING #######
+
+parse_args(@ARGV);
+
+print_options();
+
+if($no_file){
+    die "File '$file' not found !";
+}
+
+####### END OPTIONS PARSING #######
+
+
 
 our $intro = ""; # Used for reports
 
@@ -223,7 +281,7 @@ $data =~ s/%/\\%/g;
 sub picture_insert{
     my $n = scalar(@_);
     
-    print @_;
+    #print @_;
     
     if($n eq 0 or $n gt 4){
         return "Error while parsing image : wrong number of arguments";
@@ -339,14 +397,14 @@ $data =~ s/\n>-\s+([\s\S]+?)\s\[\]/\n\\begin{lemme}\n$1\n\\end{lemme}/g;
 $data =~ s/\n~\((.+?)\)\s+([\s\S]+?)\s\[\]/\n\\begin{theorem}[$1]\n$2\n\\end{theorem}/g;
 
 # Parse remarks
-if($nocomments){
+if($OPTIONS{nocomments}){
     $data =~ s/\n@@\s+([\s\S]+?)\s@@/\n/g;
 } else {
     $data =~ s/\n@@\s+([\s\S]+?)\s@@/\n\\begin{remarque}\n$1\n\\end{remarque}/g;
 }
 
 # Parse proofs
-if($noproofs){
+if($OPTIONS{noproofs}){
     $data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\emph{Voir preuve sur la version complète du cours}\n/g;
 } else {
     $data =~ s/\n¤\s+([\s\S]+?)\s\[\]/\n\\begin{proof}\n$1\n\\end{proof}/g;
@@ -478,7 +536,7 @@ sub make_table{
         $lines[$i] = \@cols;
         $ncols = scalar(@cols);
     }
-    if ($debug) {
+    if ($OPTIONS{debug}) {
         print "Detected table : $n\n";
         print "Lines :\n";
         print Dumper \@lines;
@@ -525,17 +583,17 @@ $data =~ s/<-/\\ensuremath{\\leftarrow}/g;
 $data =~ s/\\epsilon/\\varepsilon/g;
 
 # Paragraphs
-$data =~ s/\n\n/\\\\\n\n/g;
+$data =~ s/(?<!^)\n\n/\\\\\n\n/g;
 
 # Line breaks
-$data =~ s/ {2,}\n/\n\n/g;
+$data =~ s/(?<!^) {2,}\n/\n\n/g;
 
 # Footnotes - real parsing
 while ($data =~ /(?<=\n)(\[{3}(.+?)\]{3}:\s*(.+))/) {
     my $full_match = "$1";
     my $id = "$2";
     my $content = "$3";
-    if ($debug or 1) {
+    if ($OPTIONS{debug}) {
         print "Footnote ($id): $content\n";
     }
     $data =~ s/\[{3}$id\]{3}(?!:)/\\footnote[$id]{$content}/g;
@@ -559,7 +617,7 @@ $data =~ s/¬([0-9]+?)¬/@{[chr($1)]}/g;
 if( $data =~ /\n!INTRO!([\s\S]+?)\s\[\]/ ) {
     $intro = "$1";
     $data =~ s/\n!INTRO!([\s\S]+?)\s\[\]//g;
-    if($debug) {
+    if($OPTIONS{debug}) {
         print "INTRO:\n$intro\n";
     }
 } elsif ($type ne "article" ) {
@@ -569,14 +627,14 @@ if( $data =~ /\n!INTRO!([\s\S]+?)\s\[\]/ ) {
 ### Adding header and all
 
 my $documentclass = "";
-if($merging){
+if($OPTIONS{merging}){
     $documentclass = "a5paper, 10pt";
 } else {
     $documentclass = "a4paper, 10pt";
 }
 
 my $toc = "\\tableofcontents";
-if ($notoc){
+if ($OPTIONS{notoc}){
     $toc = "";
 }
 
@@ -745,22 +803,22 @@ close $newfile;
 my $print_debug = "";
 my $hide_output = "2>&1";
 my $interraction_mode = "--interaction=nonstopmode";
-if($debug){
+if($OPTIONS{debug}){
     $print_debug = "1>&2";
     $hide_output = "";
     $interraction_mode = "";
 }
 
 my $cmd_end = ";";
-if($stop_on_error){
+if($OPTIONS{stop_on_error}){
     $cmd_end = "&&";
 }
 
 my $fold_command = "mv '$filename.pdf' '$output' $hide_output";
 
-if($merging){
+if($OPTIONS{merging}){
     $fold_command = "pdfnup '$filename.pdf' --nup '2x1' $hide_output; mv '$filename-nup.pdf' '$output' $hide_output";
-} elsif($folded){
+} elsif($OPTIONS{folded}){
     print "Folded activated\n";
     $fold_command = "pdfbook --batch '$filename.pdf' $hide_output; mv '$filename-book.pdf' '$output' $hide_output";
 }
@@ -776,7 +834,7 @@ for(my $i=0; $i<3; $i++){
 #$shell_output = `$xelatex_command $fold_command`;
 print "done !\n";
 
-if($clean){
+if($OPTIONS{clean}){
     print "Cleaning... ";
     $shell_output = `rm -f '$filename.tex' '$filename.log' '$filename.aux' '$filename.toc' '$filename.out'`;
     print "done\n";
