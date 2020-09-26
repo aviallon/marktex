@@ -387,6 +387,9 @@ $data =~ s/_(.+?)_/\\emph{$1}/g;
 #$data =~ s/\*{2}([^\$\n]+?)\*{2}(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textbf{$1}/g;
 $data =~ s/\*{2}(.+?)\*{2}/\\textbf{$1}/g;
 
+# Footnotes (preparse)
+$data =~ s/\[\^(.+?)\]/[[[$1]]]/g;
+
 # Put '^{texte}' in superscript
 #$data =~ s/\^\{([^\$\n]+?)\}(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/g;
 $data =~ s/\^\{(.+?)\}/\\textsuperscript{$1}/g;
@@ -394,7 +397,6 @@ $data =~ s/\^\{(.+?)\}/\\textsuperscript{$1}/g;
 # Put '^[char]' in superscript
 #$data =~ s/\^([^\$\n])(?=(?:(?:[^\$])|(?:\$)[^\$]*\$)*?$)/\\textsuperscript{$1}/g;
 $data =~ s/\^(.)/\\textsuperscript{$1}/g;
-
 
 # Put '#NUM)' in bold
 $data =~ s/\n\s*([0-9]+)\)(\s)/\n\\par\\textbf{$1.}$2/g;
@@ -513,6 +515,16 @@ $data =~ s/<-/\\ensuremath{\\leftarrow}/g;
 # Because the "standard" epsilon is ugly
 $data =~ s/\\epsilon/\\varepsilon/g;
 
+# Footnotes - real parsing
+for ($data =~ s/\[{3}(.+?)\]{3}:\s*(.+)//g) {
+    my $id = "$1";
+    my $content = "$2";
+    if ($debug) {
+        print "Footnote ($id): $content\n";
+    }
+    $data =~ s/\[{3}$id\]{3}(?!:)/\\footnote[$id]{$content}/g;
+}
+
 ### WORKAROUNDS
 
 # Workaround for $$ $$ - revert
@@ -588,6 +600,7 @@ my $packages = "\
 \\usepackage{stmaryrd}
 \\usepackage{dirtytalk}
 \\usepackage{multicol}
+\\usepackage[bottom]{footmisc}
 \\usepackage[french]{babel}";
 
 
