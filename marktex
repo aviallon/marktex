@@ -3,6 +3,7 @@
 package Marktex;
 use strict;
 use warnings;
+use Switch;
 use Data::Dumper;
 
 $SIG{INT} = sub { die "Cancelled by user $!" };
@@ -95,7 +96,7 @@ Options :
     --folded       Folds pages specialy for book printing
     --stop-on-error    Stop processing file on error
     --no-toc    Do not add a Table of Contents
-    --no-page-merging  Disables page merging (2 pages on one sheet)
+    --page-merging  Enables page merging (2 pages on one sheet)
     --lesson-cards Equivalent to --no-comments --no-proofs --folded -c -o [filename]-fiche.pdf\n";
                  exit;
             } else {
@@ -142,6 +143,24 @@ if($data =~ /---[\s\S]*\nmode: ([^\n]+)\n[\s\S]*---/i ){
     print "Notice : no mode provided. Using default : $mode\n";
 }
 
+# Get options
+our $options = "";
+if($data =~ /---[\s\S]*\noptions: ([^\n]+)\n[\s\S]*---/i ){
+    $options = $1;
+    print "[NYI] Using options : \'$mode\'\n";
+} else {
+    print "Notice : Using default options\n";
+}
+
+# Get options
+our $type = "article";
+if($data =~ /---[\s\S]*\ntype: ([^\n]+)\n[\s\S]*---/i ){
+    $type = $1;
+    print "Using type : \'$type\'\n";
+} else {
+    print "Notice : Using default type: \'$type\'\n";
+}
+
 # Get info message
 my $info = "";
 if($data =~ /---[\s\S]*\ninfo: ([^\n]+)\n[\s\S]*---/i ){
@@ -180,6 +199,8 @@ if($data =~ /---\n[\s\S]*avatars: ([^\n]+)\n[\s\S]*---/i ){
 } else {
     print "Warning : no avatar provided.\n";
 }
+
+our $intro = ""; # Used for reports
 
 ######## CONTENT PARSING #######
 
@@ -492,6 +513,8 @@ $data =~ s/<-/\\ensuremath{\\leftarrow}/g;
 # Because the "standard" epsilon is ugly
 $data =~ s/\\epsilon/\\varepsilon/g;
 
+### WORKAROUNDS
+
 # Workaround for $$ $$ - revert
 $data =~ s/\$\¶/\$\$/g;
 
@@ -499,6 +522,19 @@ $data =~ s/\$\¶/\$\$/g;
 $data =~ s/\$ł//g;
 
 $data =~ s/¬([0-9]+?)¬/@{[chr($1)]}/g;
+
+### SPECIAL
+
+# Intro text retrieval
+if( $data =~ /\n!INTRO!([\s\S]+?)\s\[\]/ ) {
+    $intro = "$1";
+    $data =~ s/\n!INTRO!([\s\S]+?)\s\[\]//g;
+    if($debug) {
+        print "INTRO:\n$intro\n";
+    }
+} elsif ($type ne "article" ) {
+    print "Warning, no intro specified !\n";
+}
 
 ### Adding header and all
 
@@ -513,6 +549,8 @@ my $toc = "\\tableofcontents";
 if ($notoc){
     $toc = "";
 }
+
+
 
 my $authors_footer = "";
 my $author_preprocess = $author;
@@ -581,6 +619,27 @@ if($mode ne "maths" and $mode ne "physics"){
     $shortcuts = "";
 }
 
+my $layout = "";
+switch($type) {
+    case "article" {
+        $layout = "\
+$toc
+\\vspace*{1em}
+$intro";
+    }
+    case "report" {
+        $layout = "\
+$intro
+\\pagebreak
+$toc
+\\pagebreak";
+    }
+}
+
+# if ($type eq "article") {
+#     
+# } else
+
 $data = "\\documentclass[$documentclass]{extarticle}
 % Essential packages
 $packages
@@ -634,7 +693,7 @@ $shortcuts
 \\begin{document}
 \\maketitle
 $avatars
-$toc
+$layout
 $data
 \\hrulefill
 
